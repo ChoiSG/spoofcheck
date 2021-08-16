@@ -1,5 +1,7 @@
 import logging
+from re import L
 import sys
+import argparse
 
 import emailprotectionslib.dmarc as dmarclib
 import emailprotectionslib.spf as spflib
@@ -222,15 +224,45 @@ def is_dmarc_record_strong(domain):
 
     return dmarc_record_strong
 
+def makeDict(domain):
+    spf_record_strength = is_spf_record_strong(domain)
+    dmarc_record_strength = is_dmarc_record_strong(domain)
+    spoofable = False 
+
+    if (dmarc_record_strength == False):
+        spoofable = True 
+
+    dict = {'name': domain, 'spf': spf_record_strength, 'dmarc': dmarc_record_strength, 'spoofable': spoofable}
+
+    return dict
+
+def parse():
+    parser = argparse.ArgumentParser(description="something")
+    parser.add_argument('-d', '--domain', dest='d', type=str)
+    parser.add_argument('-f', '--file', dest='f', type=str)
+
+    if len(sys.argv) == 1:
+        parser.print_help()
+        exit(1)
+
+    
+    args = parser.parse_args()
+    return args 
 
 if __name__ == "__main__":
     color_init()
 
-    try:
-        domain = sys.argv[1]
+    args = parse()
+    domain = args.d 
+    file = args.f 
+    total = 0
+    spoofable = 0
+    weakSPF = 0
+    weakDmarc = 0
+    results = []
 
+    if (domain is not None):
         spf_record_strength = is_spf_record_strong(domain)
-
         dmarc_record_strength = is_dmarc_record_strong(domain)
 
         if dmarc_record_strength is False:
@@ -238,5 +270,36 @@ if __name__ == "__main__":
         else:
             output_bad("Spoofing not possible for " + domain)
 
-    except IndexError:
-        output_error("Usage: " + sys.argv[0] + " [DOMAIN]")
+    elif (file is not None):
+        try:
+            print("[+] Using file!")
+            
+            fd = open(file, 'r')
+            for line in fd:
+                total += 1 
+                line = line.strip()            
+                results.append(makeDict(line))       
+            
+            
+        except Exception as e:
+            print(f"[-] Error: {str(e)}")
+
+
+    for item in results:
+        if(item['spoofable'] == True):
+            spoofable += 1
+        if(item['spf'] == False):
+            weakSPF += 1
+        if(item['dmarc'] == False):
+            weakDmarc += 1
+        
+        print(item)
+        
+
+    print("\n===============================================\n")
+
+    print(f"[+] Total Domains: {str(total)}\n")
+    print(f"[+] Weak SPF Domains: {str(weakSPF)} / {str(total)} ")
+    print(f"[+] weak DMARK Domains: {str(weakDmarc)} / {str(total)}\n")
+
+    print(f"[+] Total Spoofable Domains: {str(spoofable)} / {str(total)}")
