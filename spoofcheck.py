@@ -2,6 +2,7 @@ import logging
 from re import L
 import sys
 import argparse
+import json
 
 import emailprotectionslib.dmarc as dmarclib
 import emailprotectionslib.spf as spflib
@@ -236,10 +237,23 @@ def makeDict(domain):
 
     return dict
 
-def parse():
-    parser = argparse.ArgumentParser(description="something")
+def saveOutput(filename, results):
+    try:
+        fd = open(filename, 'w')
+        fd.write(json.dumps(results, indent=4))
+        
+        fd.close()
+        print(f"\n\n[*] Output file: {filename}\n\n")
+
+    except Exception as e:
+        print(f"[-] Error: {str(e)}")
+        exit(1) 
+
+def parse(parser):
+    
     parser.add_argument('-d', '--domain', dest='d', type=str)
     parser.add_argument('-f', '--file', dest='f', type=str)
+    parser.add_argument('-o', '--output-file', dest='o', type=str)
 
     if len(sys.argv) == 1:
         parser.print_help()
@@ -251,10 +265,12 @@ def parse():
 
 if __name__ == "__main__":
     color_init()
+    parser = argparse.ArgumentParser(description="Scuffed argparse for spoofcheck")
 
-    args = parse()
+    args = parse(parser)
     domain = args.d 
     file = args.f 
+    outputFilename = args.o 
     total = 0
     spoofable = 0
     weakSPF = 0
@@ -272,18 +288,26 @@ if __name__ == "__main__":
 
     elif (file is not None):
         try:
-            print("[+] Using file!")
+            output_info(f"Using file: {file}\n")
             
             fd = open(file, 'r')
             for line in fd:
                 total += 1 
-                line = line.strip()            
-                results.append(makeDict(line))       
-            
+                line = line.strip()
+                output_info(f"Using: {line}")            
+                results.append(makeDict(line))
+                print()       
             
         except Exception as e:
-            print(f"[-] Error: {str(e)}")
+            output_error(f"[-] Error: {str(e)}")
 
+        if (outputFilename is not None):
+            saveOutput(outputFilename, results)
+
+    else:
+        parser.print_help()
+        exit(1)
+    
 
     for item in results:
         if(item['spoofable'] == True):
@@ -293,13 +317,11 @@ if __name__ == "__main__":
         if(item['dmarc'] == False):
             weakDmarc += 1
         
-        print(item)
-        
 
     print("\n===============================================\n")
 
-    print(f"[+] Total Domains: {str(total)}\n")
-    print(f"[+] Weak SPF Domains: {str(weakSPF)} / {str(total)} ")
-    print(f"[+] weak DMARK Domains: {str(weakDmarc)} / {str(total)}\n")
+    print(f"[*] Total Domains: {str(total)}\n")
+    print(f"[*] Weak SPF Domains: {str(weakSPF)} / {str(total)} ")
+    print(f"[*] Weak DMARC Domains: {str(weakDmarc)} / {str(total)}\n")
 
-    print(f"[+] Total Spoofable Domains: {str(spoofable)} / {str(total)}")
+    print(f"[*] Total Spoofable Domains: {str(spoofable)} / {str(total)}")
